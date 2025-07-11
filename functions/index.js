@@ -9,8 +9,8 @@ admin.initializeApp();
 const storage = new Storage();
 const pubsub = new PubSub();
 
-// Get project ID
-const PROJECT_ID = process.env.GCLOUD_PROJECT;
+// Hard-code project ID and bucket names
+const PROJECT_ID = 'streamshare-1dbdf';
 
 // Simple test function
 exports.helloWorld = onCall((request) => {
@@ -34,7 +34,6 @@ exports.createUserDocument = beforeUserCreated(async (event) => {
 
 // Generate signed URL for video upload
 exports.generateUploadUrl = onCall(async (request) => {
-  // Check if user is authenticated
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
@@ -45,13 +44,13 @@ exports.generateUploadUrl = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'fileName and contentType are required');
   }
   
-  const bucket = storage.bucket(`${PROJECT_ID}-raw-videos`);
+  const bucket = storage.bucket('streamshare-1dbdf-raw-videos');
   const file = bucket.file(`${request.auth.uid}/${Date.now()}-${fileName}`);
   
   try {
     const [signedUrl] = await file.getSignedUrl({
       action: 'write',
-      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
+      expires: Date.now() + 15 * 60 * 1000,
       contentType: contentType,
     });
     
@@ -104,21 +103,12 @@ exports.getVideo = onCall(async (request) => {
   }
 });
 
-// Trigger when video is uploaded to Cloud Storage
-exports.onVideoUpload = onObjectFinalized(async (event) => {
+// Storage trigger with hard-coded bucket name
+exports.onVideoUpload = onObjectFinalized({
+  bucket: 'streamshare-1dbdf-raw-videos'
+}, async (event) => {
   const filePath = event.data.name;
   const bucketName = event.data.bucket;
-  
-  // Only process videos from raw bucket
-  if (bucketName !== `${PROJECT_ID}-raw-videos`) {
-    console.log('Ignoring upload to non-raw bucket:', bucketName);
-    return;
-  }
-  
-  if (!filePath) {
-    console.log('No file path found');
-    return;
-  }
   
   console.log('Processing video upload:', filePath);
   
@@ -138,7 +128,7 @@ exports.onVideoUpload = onObjectFinalized(async (event) => {
       status: 'processing',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       rawVideoPath: filePath,
-      title: fileName.replace(/\.[^/.]+$/, ""), // Remove file extension
+      title: fileName.replace(/\.[^/.]+$/, ""),
       description: ''
     };
     
