@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
+import VideoModal from './VideoModal';
+import type { User } from 'firebase/auth';
 
 interface ProcessedVideo {
   resolution: string;
@@ -35,11 +37,20 @@ interface VideoListProps {
 
 export default function VideoList({ showAllVideos = true }: VideoListProps) {
   const [videos, setVideos] = useState<Video[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
+  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const { user } = useAuth();
 
-  const getVideos = httpsCallable(functions, 'getVideos');
+  const getVideos = httpsCallable<void, Video[]>(functions, 'getVideos');
+
+  // Move formatViews outside useEffect so it can be used throughout the component
+  const formatViews = (views: number = 0): string => {
+    if (views < 1000) return `${views} views`;
+    if (views < 1000000) return `${(views / 1000).toFixed(1)}K views`;
+    return `${(views / 1000000).toFixed(1)}M views`;
+  };
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -50,12 +61,12 @@ export default function VideoList({ showAllVideos = true }: VideoListProps) {
         
         // Filter videos based on showAllVideos prop
         if (!showAllVideos && user) {
-          fetchedVideos = fetchedVideos.filter(video => video.userId === user.uid);
+          fetchedVideos = fetchedVideos.filter((video: Video) => video.userId === user.uid);
         }
         
         // Filter out private videos if not the owner
         if (showAllVideos) {
-          fetchedVideos = fetchedVideos.filter(video => {
+          fetchedVideos = fetchedVideos.filter((video: Video) => {
             if (video.visibility === 'private') {
               return user && video.userId === user.uid;
             }
@@ -72,16 +83,16 @@ export default function VideoList({ showAllVideos = true }: VideoListProps) {
       } finally {
         setLoading(false);
       }
-    };
+    }; // Added missing semicolon here
 
     fetchVideos();
     
     // Refresh videos every 10 seconds to check for processed videos
-    const interval = setInterval(fetchVideos, 10000);
+    const interval: NodeJS.Timeout = setInterval(fetchVideos, 10000);
     return () => clearInterval(interval);
   }, [showAllVideos, user]);
 
-  const formatTimeAgo = (timestamp: any) => {
+  const formatTimeAgo = (timestamp: any): string => {
     if (!timestamp) return 'Unknown';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const now = new Date();
@@ -93,10 +104,14 @@ export default function VideoList({ showAllVideos = true }: VideoListProps) {
     return `${Math.floor(diffInSeconds / 86400)} days ago`;
   };
 
-  const formatViews = (views: number = 0) => {
-    if (views < 1000) return `${views} views`;
-    if (views < 1000000) return `${(views / 1000).toFixed(1)}K views`;
-    return `${(views / 1000000).toFixed(1)}M views`;
+  const openVideoModal = (video: Video) => {
+    setSelectedVideo(video);
+    setIsModalOpen(true);
+  };
+
+  const closeVideoModal = () => {
+    setSelectedVideo(null);
+    setIsModalOpen(false);
   };
 
   if (loading) return (
@@ -159,7 +174,11 @@ export default function VideoList({ showAllVideos = true }: VideoListProps) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {videos.map((video) => (
-            <div key={video.id} className="bg-dark-surface rounded-lg overflow-hidden border border-dark-border hover:border-primary/50 transition-all duration-200 group">
+            <div 
+              key={video.id} 
+              className="bg-dark-surface rounded-lg overflow-hidden border border-dark-border hover:border-primary/50 transition-all duration-200 group cursor-pointer"
+              onClick={() => openVideoModal(video)}
+            >
               {/* Video Thumbnail/Player */}
               <div className="relative aspect-video bg-dark-card">
                 {video.status === 'processed' && video.processedVideos && video.processedVideos.length > 0 ? (
@@ -295,6 +314,13 @@ export default function VideoList({ showAllVideos = true }: VideoListProps) {
           ))}
         </div>
       )}
+      
+      {/* Video Modal */}
+      <VideoModal 
+        video={selectedVideo}
+        isOpen={isModalOpen}
+        onClose={closeVideoModal}
+      />
     </div>
   );
 }
