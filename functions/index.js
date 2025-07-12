@@ -46,7 +46,7 @@ exports.generateUploadUrl = onCall(async (request) => {
       throw new HttpsError('unauthenticated', 'User must be authenticated');
     }
     
-    const {fileName, contentType} = request.data;
+    const {fileName, contentType, metadata} = request.data;
     
     if (!fileName || !contentType) {
       throw new HttpsError('invalid-argument', 'fileName and contentType are required');
@@ -63,12 +63,24 @@ exports.generateUploadUrl = onCall(async (request) => {
         version: 'v4'
       });
       
+      // Store metadata temporarily for when the file is uploaded
+      if (metadata) {
+        await admin.firestore().collection('upload-metadata').doc(file.name).set({
+          ...metadata,
+          userId: request.auth.uid,
+          userEmail: request.auth.token.email,
+          userName: request.auth.token.name || request.auth.token.email,
+          userAvatar: request.auth.token.picture || '',
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      
       return {uploadUrl: signedUrl, filePath: file.name};
     } catch (error) {
       console.error('Error generating signed URL:', error);
       throw new HttpsError('internal', `Failed to generate upload URL: ${error.message}`);
     }
-});
+  });
 
 // Get all processed videos
 exports.getVideos = onCall(async (request) => {
@@ -119,49 +131,87 @@ exports.getVideo = onCall(async (request) => {
 
 // Storage trigger with hard-coded bucket name
 exports.onVideoUpload = onObjectFinalized({
-  bucket: 'streamshare-1dbdf-raw-videos'
-}, async (event) => {
-  const filePath = event.data.name;
-  const bucketName = event.data.bucket;
-  
-  console.log('Processing video upload:', filePath);
-  
-  try {
-    // Extract user ID and create video ID
-    const pathParts = filePath.split('/');
-    const userId = pathParts[0];
-    const fileName = pathParts[pathParts.length - 1];
-    const videoId = fileName.split('.')[0];
+    bucket: 'streamshare-1dbdf-raw-videos'
+  }, async (event) => {
+    const filePath = event.data.name;
+    const bucketName = event.data.bucket;
     
-    // Create video document in Firestore
-    const videoDoc = {
-      id: videoId,
-      fileName: fileName,
-      filePath: filePath,
-      userId: userId,
-      status: 'processing',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      rawVideoPath: filePath,
-      title: fileName.replace(/\.[^/.]+$/, ""),
-      description: ''
-    };
+    if (!filePath) {
+      console.log('No file path found');
+      return;
+    }
     
-    await admin.firestore().collection('videos').doc(videoId).set(videoDoc);
-    console.log('Created video document:', videoId);
+    console.log('Processing video upload:', filePath);
     
-    // Publish message to Pub/Sub for processing
-    const topic = pubsub.topic('video-uploaded');
-    const messageData = {
-      videoId,
-      filePath,
-      bucketName,
-      userId
-    };
-    
-    await topic.publish(Buffer.from(JSON.stringify(messageData)));
-    console.log('Published message to Pub/Sub:', messageData);
-    
-  } catch (error) {
-    console.error('Error processing video upload:', error);
-  }
+    try {
+      // Extract user ID and create video ID
+      const pathParts = filePath.split('/');
+      const userId = pathParts[0];
+      const fileName = pathParts[pathParts.length - 1];
+      const videoId = fileName.split('.')[0];
+      
+      // Get metadata from temporary storage
+      let videoMetadata = {};
+      try {
+        const metadataDoc = await admin.firestore().collection('upload-metadata').doc(filePath).get();
+        if (metadataDoc.exists) {
+          videoMetadata = metadataDoc.data();
+          // Clean up temporary metadata
+          await metadataDoc.ref.delete();
+        }
+      } catch (error) {
+        console.log('No metadata found, using defaults');
+      }
+      
+      // Create enhanced video document
+      const videoDoc = {
+        id: videoId,
+        fileName: fileName,
+        filePath: filePath,
+        userId: userId,
+        status: 'processing',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        rawVideoPath: filePath,
+        
+        // Enhanced metadata
+        title: videoMetadata.title || fileName.replace(/\.[^/.]+$/, ""),
+        description: videoMetadata.description || '',
+        visibility: videoMetadata.visibility || 'public',
+        tags: videoMetadata.tags || [],
+        userName: videoMetadata.userName || 'Unknown User',
+        userAvatar: videoMetadata.userAvatar || '',
+        
+        // Stats
+        views: 0,
+        likes: 0,
+        
+        // File info
+        originalFileName: videoMetadata.originalFileName || fileName,
+        fileSize: videoMetadata.fileSize || 0,
+        
+        // Processing info
+        thumbnailUrl: '',
+        duration: 0,
+        processedVideos: []
+      };
+      
+      await admin.firestore().collection('videos').doc(videoId).set(videoDoc);
+      console.log('Created enhanced video document:', videoId);
+      
+      // Publish message to Pub/Sub for processing
+      const topic = pubsub.topic('video-uploaded');
+      const messageData = {
+        videoId,
+        filePath,
+        bucketName,
+        userId,
+        title: videoDoc.title
+      };
+      
+      await topic.publish(Buffer.from(JSON.stringify(messageData)));
+      console.log('Published message to Pub/Sub:', messageData);
+      
+    } catch (error) {
+      console.error('Error processing video upload:', error);
+    }
 });
