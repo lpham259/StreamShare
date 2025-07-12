@@ -1,88 +1,89 @@
 'use client';
 
-import { useAuth } from '@/hooks/useAuth';
-import VideoUpload from '@/components/VideoUpload';
-import VideoList from '@/components/VideoList';
+import { useAuth } from '../hooks/useAuth';
+import VideoList from '../components/VideoList';
+import Link from 'next/link';
 
-export default function Home() {
+export default function HomePage() {
   const { user, loading, signIn, signOutUser } = useAuth();
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-dark-bg text-dark-text flex items-center justify-center">
         <div className="text-xl">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">StreamShare</h1>
+    <div className="min-h-screen bg-dark-bg text-dark-text">
+      {/* Navigation Header */}
+      <header className="bg-dark-surface border-b border-dark-border">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold">
+            <span className="text-primary">Stream</span>Share
+          </h1>
           
-          {user ? (
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                {user.photoURL && (
-                  <img 
-                    src={user.photoURL} 
-                    alt="Profile" 
-                    className="w-8 h-8 rounded-full"
-                  />
-                )}
-                <span className="text-gray-700">
-                  Welcome, {user.displayName || user.email}
-                </span>
-              </div>
-              <button
-                onClick={signOutUser}
-                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-              >
-                Sign Out
+          <nav className="hidden md:flex space-x-6">
+            <Link href="/" className="text-primary font-medium">
+              Home
+            </Link>
+            {user && (
+              <>
+                <Link href="/my-videos" className="text-dark-text-secondary hover:text-dark-text">
+                  My Videos
+                </Link>
+                <Link href="/upload" className="text-dark-text-secondary hover:text-dark-text">
+                  Upload
+                </Link>
+              </>
+            )}
+          </nav>
+
+          <div className="flex items-center space-x-4">
+            {user ? (
+              <>
+                <Link 
+                  href="/upload"
+                  className="btn-primary"
+                >
+                  Upload Video
+                </Link>
+                <div className="flex items-center space-x-2">
+                  {user.photoURL && (
+                    <img 
+                      src={user.photoURL} 
+                      alt="Profile" 
+                      className="w-8 h-8 rounded-full"
+                    />
+                  )}
+                  <span className="text-dark-text hidden sm:block">
+                    {user.displayName || user.email}
+                  </span>
+                </div>
+                <button onClick={signOutUser} className="btn-secondary">
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <button onClick={signIn} className="btn-primary">
+                Sign In with Google
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={signIn}
-              className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600"
-            >
-              Sign In with Google
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {user ? (
-          <>
-            {/* Upload Section */}
-            <VideoUpload />
-            
-            {/* Videos Section */}
-            <VideoList />
-          </>
-        ) : (
-          <div className="text-center py-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Welcome to StreamShare
-            </h2>
-            <p className="text-xl text-gray-600 mb-8">
-              Upload, process, and share your videos with ease
-            </p>
-            <div className="max-w-2xl mx-auto text-gray-600">
-              <p className="mb-4">
-                StreamShare automatically processes your videos into multiple formats,
-                making them ready for streaming on any device.
-              </p>
-              <p>
-                Sign in with Google to get started!
-              </p>
-            </div>
-          </div>
-        )}
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold mb-2">Discover Videos</h2>
+          <p className="text-dark-text-secondary">
+            Explore the latest uploads from our community
+          </p>
+        </div>
+        
+        <VideoList showAllVideos={true} />
       </main>
     </div>
   );

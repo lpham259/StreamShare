@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0F0F0F;
+  --foreground: #FFFFFF;
 }
 
 @theme inline {
@@ -10,17 +10,74 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  
+  /* Custom dark theme colors */
+  --color-primary: #651FFF;
+  --color-primary-dark: #4615B2;
+  --color-primary-light: #7C4DFF;
+  --color-dark-bg: #0F0F0F;
+  --color-dark-surface: #1F1F1F;
+  --color-dark-card: #2A2A2A;
+  --color-dark-border: #404040;
+  --color-dark-text: #FFFFFF;
+  --color-dark-text-secondary: #AAAAAA;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Custom component classes */
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-dark);
+}
+
+.btn-secondary {
+  background: var(--color-dark-surface);
+  color: var(--color-dark-text);
+  border: 1px solid var(--color-dark-border);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.btn-secondary:hover {
+  background: var(--color-dark-card);
+}
+
+.card {
+  background: var(--color-dark-surface);
+  border: 1px solid var(--color-dark-border);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+}
+
+.input {
+  background: var(--color-dark-card);
+  border: 1px solid var(--color-dark-border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  color: var(--color-dark-text);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.input::placeholder {
+  color: var(--color-dark-text-secondary);
 }
